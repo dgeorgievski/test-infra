@@ -20,7 +20,7 @@
     var: bootstrap_kind_get_cluster
 
 - name: Create management cluster
-  become: true
+  become: true  
   ansible.builtin.command: kind create cluster --kubeconfig /tmp/kubeconfig --config=-
   args:
     stdin: |
@@ -32,12 +32,12 @@
           extraMounts:
             - hostPath: /var/run/{{ container_engine }}.sock
               containerPath: /var/run/{{ container_engine }}.sock
-      {% if lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') %}
+      
       containerdConfigPatches:
         - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = {{ lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') | from_json }}
-      {% endif %}
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
+
   when: not 'kind' in bootstrap_kind_get_cluster.stdout
   changed_when: true
 
@@ -69,3 +69,27 @@
     wait_condition:
       type: Ready
       status: true
+
+- name: Configure default insecure registries for containerd
+  become: true
+  when: lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') 
+  ansible.builtin.shell: |
+      CONTAINERD_ETC_DIR="/etc/containerd"
+      DEFAULT_REGISTRY_DIR="${CONTAINERD_ETC_DIR}/certs.d/_default"
+      IFS=","
+      TMP_FILE=$(mktemp -q /tmp/containerd-registry-hosts.XXXXXX)
+      for node in $(kind get nodes --name kind); do
+        docker exec "${node}" mkdir -p "${DEFAULT_REGISTRY_DIR}"
+        for mirror in {{ lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') }}; do
+          cat <<-EOF >> ${TMP_FILE}
+          [host."$mirror"]
+            capabilities = ["pull", "resolve"]
+            skip_verify = true
+      EOF
+        done
+
+        docker cp ${TMP_FILE} "${node}:${DEFAULT_REGISTRY_DIR}/hosts.toml"
+        rm -f $TMP_FILE
+      done
+  args:
+    executable: /bin/bash  

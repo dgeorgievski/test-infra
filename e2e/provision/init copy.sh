@@ -66,25 +66,6 @@ DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME:-""}
 DOCKERHUB_TOKEN=${DOCKERHUB_TOKEN:-""}
 FAIL_FAST=${FAIL_FAST:-$(get_metadata fail_fast "false")}
 
-cat <<EOF 
-Script params:
-    DEBUG: $DEBUG 
-    DEPLOYMENT_TYPE: $DEPLOYMENT_TYPE 
-    RUN_E2E: $RUN_E2E 
-    REPO: $REPO 
-    BRANCH: $BRANCH 
-    NEPHIO_USER: $NEPHIO_USER 
-    NEPHIO_CATALOG_REPO_URI: $NEPHIO_CATALOG_REPO_URI
-    HOME: $HOME 
-    REPO_DIR: $REPO_DIR
-    DOCKERHUB_USERNAME: $DOCKERHUB_USERNAME
-    DOCKERHUB_TOKEN: $DOCKERHUB_TOKEN
-    DOCKER_REGISTRY_MIRRORS: $DOCKER_REGISTRY_MIRRORS
-    DOCKER_INSECURE_REGISTRIES: $DOCKER_INSECURE_REGISTRIES
-    FAIL_FAST: $FAIL_FAST
-    ANSIBLE_CMD_EXTRA_VAR_LIST: $ANSIBLE_CMD_EXTRA_VAR_LIST
-EOF
-
 echo "$DEBUG, $DEPLOYMENT_TYPE, $RUN_E2E, $REPO, $BRANCH, $NEPHIO_USER, $HOME, $REPO_DIR, $DOCKERHUB_USERNAME, $DOCKERHUB_TOKEN"
 trap get_status ERR
 
@@ -109,14 +90,14 @@ if ! command -v git >/dev/null; then
 fi
 
 if [ ! -d "$REPO_DIR" ]; then
-    sudo runuser -u "$NEPHIO_USER" git clone "$REPO" "$REPO_DIR"
+    runuser -u "$NEPHIO_USER" git clone "$REPO" "$REPO_DIR"
     if [[ $BRANCH != "main" ]]; then
         pushd "$REPO_DIR" >/dev/null
-        TAG=$(sudo runuser -u "$NEPHIO_USER" -- git tag --list $BRANCH)
+        TAG=$(runuser -u "$NEPHIO_USER" -- git tag --list $BRANCH)
         if [[ $TAG == $BRANCH ]]; then
-            sudo runuser -u "$NEPHIO_USER" -- git checkout --detach "$TAG"
+            runuser -u "$NEPHIO_USER" -- git checkout --detach "$TAG"
         else
-            sudo runuser -u "$NEPHIO_USER" -- git checkout -b "$BRANCH" --track "origin/$BRANCH"
+            runuser -u "$NEPHIO_USER" -- git checkout -b "$BRANCH" --track "origin/$BRANCH"
         fi
         popd >/dev/null
     fi
@@ -131,20 +112,12 @@ sed -e "s/vagrant/$NEPHIO_USER/" <"$REPO_DIR/e2e/provision/nephio.yaml" >"$HOME/
 # Sandbox Creation
 int_start=$(date +%s)
 cd "$REPO_DIR/e2e/provision"
-# export DEBUG DEPLOYMENT_TYPE DOCKERHUB_USERNAME DOCKERHUB_TOKEN FAIL_FAST
-export DEBUG \
-    DEPLOYMENT_TYPE \
-    DOCKERHUB_USERNAME \
-    DOCKERHUB_TOKEN \
-    DOCKER_REGISTRY_MIRRORS \
-    DOCKER_INSECURE_REGISTRIES \
-    FAIL_FAST
-
-sudo runuser -u "$NEPHIO_USER" ./install_sandbox.sh
+export DEBUG DEPLOYMENT_TYPE DOCKERHUB_USERNAME DOCKERHUB_TOKEN FAIL_FAST
+runuser -u "$NEPHIO_USER" ./install_sandbox.sh
 printf "%s secs\n" "$(($(date +%s) - int_start))"
 
 if [[ $RUN_E2E == "true" ]]; then
-    sudo runuser -u "$NEPHIO_USER" "$REPO_DIR/e2e/e2e.sh"
+    runuser -u "$NEPHIO_USER" "$REPO_DIR/e2e/e2e.sh"
 fi
 
 echo "Done Nephio Execution"

@@ -32,6 +32,7 @@
           - "DOCKERHUB_USERNAME: {{ lookup('ansible.builtin.env', 'DOCKERHUB_USERNAME') }}"
           - "DOCKERHUB_TOKEN: {{ lookup('ansible.builtin.env', 'DOCKERHUB_TOKEN') }}"
           - "DOCKER_REGISTRY_MIRRORS: {{ lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') }}"
+          - "DOCKER_INSECURE_REGISTRIES: {{ lookup('ansible.builtin.env', 'DOCKER_INSECURE_REGISTRIES') }}"
           - "HTTP_PROXY: {{ lookup('ansible.builtin.env', 'HTTP_PROXY') }}, HTTPS_PROXY: {{ lookup('ansible.builtin.env', 'HTTPS_PROXY') }}"
           - "NO_PROXY: {{ lookup('ansible.builtin.env', 'NO_PROXY') }}"
           - "http_proxy: {{ lookup('ansible.builtin.env', 'http_proxy') }}, https_proxy: {{ lookup('ansible.builtin.env', 'https_proxy') }}"
@@ -49,7 +50,13 @@
           ansible.builtin.set_fact:
             docker_engine_daemon_json:
               registry-mirrors: "{{ lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') }}"
-          when: lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS')
+          when: lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') and not lookup('ansible.builtin.env', 'DOCKER_INSECURE_REGISTRIES')
+        - name: Add insecure registry mirrors to docker configuration
+          ansible.builtin.set_fact:
+            docker_engine_daemon_json:
+              registry-mirrors: ["{{ lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') }}"]
+              insecure-registries: ["{{ lookup('ansible.builtin.env', 'DOCKER_INSECURE_REGISTRIES') }}"]
+          when: lookup('ansible.builtin.env', 'DOCKER_REGISTRY_MIRRORS') and lookup('ansible.builtin.env', 'DOCKER_INSECURE_REGISTRIES')
 
         - name: Pass HTTP proxy parameters to the Docker daemon
           ansible.builtin.set_fact:
